@@ -1,0 +1,29 @@
+1 ICON "assets/pocketplay.ico"
+1 24 "assets/pocketplay.manifest"
+1 VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+ BLOCK "StringFileInfo"
+ BEGIN
+  BLOCK "040904B0"
+  BEGIN
+   VALUE "CompanyName", "PocketPlay\0"
+   VALUE "FileDescription", "PocketPlay native Rust Android controller\0"
+   VALUE "FileVersion", "1.0.0\0"
+   VALUE "InternalName", "PocketPlay\0"
+   VALUE "OriginalFilename", "PocketPlay.exe\0"
+   VALUE "ProductName", "PocketPlay\0"
+   VALUE "ProductVersion", "1.0.0\0"
+  END
+ END
+ BLOCK "VarFileInfo"
+ BEGIN
+  VALUE "Translation", 0x409, 1200
+ END
+END

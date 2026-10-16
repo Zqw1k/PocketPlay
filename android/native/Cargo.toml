@@ -1,0 +1,24 @@
+[package]
+name = "pocketplay-device"
+version = "1.0.0"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+qa = []
+
+[dependencies]
+anyhow = "1"
+jni = "0.21.1"
+libc = "0.2"
+ndk-sys = { version = "0.6", features = ["media"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "abort"

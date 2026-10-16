@@ -1,0 +1,41 @@
+# Rust outputs (keep Cargo.lock files)
+**/target/
+
+# Generated Android launcher artifacts
+/android/classes/
+/android/classes-native/
+/android/dex/
+/android/dex-native/
+/android/launcher.jar
+
+# Staged runtime dependencies and app packages
+/tools/native/*
+!/tools/native/README.md
+*.exe
+*.dll
+*.so
+*.o
+*.obj
+*.class
+*.dex
+*.apk
+*.jar
+*.zip
+*.pdb
+
+# Local SDKs, environments, logs, and personal app data
+/work/
+/outputs/
+/profiles/
+/settings.json
+*.log
+*.tmp
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+__pycache__/
+Thumbs.db
+desktop.ini
+.DS_Store
