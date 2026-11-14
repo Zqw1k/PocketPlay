@@ -24,7 +24,7 @@ The main validation device is a Xiaomi 12S Pro running Android 15 / HyperOS. The
 
 ## Getting started
 
-1. Download a packaged Windows build from this repository's Releases page, when available, and extract the entire archive.
+1. Download `PocketPlay-v1.1.0-win64.zip` from this repository's Releases page and extract the entire archive.
 2. Enable USB debugging on the phone, connect it, unlock it, and accept the computer's authorization prompt. Xiaomi devices may also require **USB debugging (Security settings)** for touch injection.
 3. Open `PocketPlay.exe`. In **Connect**, choose USB, refresh the device list, select the phone, and start a session.
 4. Open **Keymap Studio** to create and position your controls, then save the profile.
@@ -48,6 +48,19 @@ Low latency also enables fullscreen, disables VSync, and keeps the phone display
 
 VSync can improve presentation consistency at the cost of additional delay. Hardware decoding, USB, and fullscreen are useful starting points when prioritizing responsiveness. Actual latency and FPS depend on the source app, encoder, connection, GPU, and monitor. The FPS counters do not measure physical monitor scanout or the game's FPS, and zero latency is not possible.
 
+Fullscreen playback and F11 use the current Windows desktop resolution and refresh rate. The phone's capture FPS is set separately.
+
+### Presentation queue
+
+With VSync disabled, the bundled SDL build opts into a per-swap-chain
+one-frame DXGI limit. On the validation PC this reduced measured PC
+submission blocking by about 1 ms at 120 FPS; 60 FPS was effectively
+unchanged. This is not a physical display or input-to-photon measurement.
+When the desktop refresh rate at startup is a whole multiple of the capture
+target, fullscreen VSync can also use the one-frame limit. The viewer waits
+for DXGI to accept work before taking the latest decoded frame.
+See [SDL build notes](third-party/SDL/README.md) for the pinned source and patch.
+
 ## Audio and phone display
 
 Audio uses uncompressed 48 kHz stereo PCM. The added audio prebuffer defaults to 0 ms; capture, transport, Windows, and the audio device can still introduce delay. Some apps restrict audio capture.
@@ -62,9 +75,10 @@ The service keeps an already-awake session awake while streaming and restores th
 src/                  Windows UI, input, ADB, protocol, and viewer
 android/native/       Rust Android capture and control service
 android/src/          Minimal Java launcher
-media/                C ABI glue and required public library headers
+media/                C ABI glue and a bundled archive of build headers
 assets/               Application icon, manifest, and Windows resources
 tools/native/         Runtime dependency staging directory
+release/              Local Windows release archive and publishing notes
 ```
 
 Build outputs, runtime binaries, device logs, personal keymaps, SDKs, and development recordings are excluded from this source repository. Keep downloadable application packages in GitHub Releases.
@@ -80,6 +94,8 @@ Settings and keymaps are stored in `%LOCALAPPDATA%\PocketPlayNative`, outside th
 
 ## Development and licensing
 
-See [BUILDING.md](BUILDING.md) for dependencies and build instructions, [ARCHITECTURE.md](ARCHITECTURE.md) for the design, and [SECURITY.md](SECURITY.md) for security considerations.
+See [BUILDING.md](BUILDING.md) for dependencies, build instructions, and publishing.
+
+The Android service runs under the authorized ADB shell identity. Session tokens and peer identity checks protect the separate video, audio, and input connections. PocketPlay releases its wake lock, restores the phone display, and removes its forwarding rules when the session closes normally. Abrupt termination can prevent display restoration.
 
 PocketPlay's application code is licensed under the [MIT License](LICENSE). Third-party headers and runtime components retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

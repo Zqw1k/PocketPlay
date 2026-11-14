@@ -91,11 +91,15 @@ fn startup_flag(value: Option<&str>, name: &str) -> Result<bool> {
     }
 }
 pub fn run(args: &[String]) -> Result<()> {
-    if !(7..=10).contains(&args.len()) {
+    if !(7..=11).contains(&args.len()) {
         bail!("Invalid viewer arguments");
     }
     let fullscreen = startup_flag(args.get(8).map(String::as_str), "fullscreen")?;
     let vsync = startup_flag(args.get(9).map(String::as_str), "VSync")?;
+    let capture_fps: u16 = args.get(10).map_or(Ok(0), |value| value.parse())?;
+    if capture_fps > 240 {
+        bail!("Invalid capture FPS target");
+    }
     let port: u16 = args[0].parse()?;
     let token = &args[1];
     #[cfg(feature = "qa")]
@@ -114,7 +118,7 @@ pub fn run(args: &[String]) -> Result<()> {
     let prepared = args
         .get(7)
         .map(|text| -> Result<_> {
-            let viewer = media::Viewer::new(initial_size(text)?, fullscreen, vsync)?;
+            let viewer = media::Viewer::new(initial_size(text)?, fullscreen, vsync, capture_fps)?;
             let decoder = media::Decoder::new(codec, hardware, viewer.device())?;
             Ok((viewer, decoder))
         })
@@ -133,7 +137,7 @@ pub fn run(args: &[String]) -> Result<()> {
             media
         }
         None => {
-            let viewer = media::Viewer::new(initial.display, fullscreen, vsync)?;
+            let viewer = media::Viewer::new(initial.display, fullscreen, vsync, capture_fps)?;
             let decoder = media::Decoder::new(codec, hardware, viewer.device())?;
             (viewer, decoder)
         }
@@ -338,6 +342,14 @@ pub fn run(args: &[String]) -> Result<()> {
                     .wait_timeout(state, Duration::from_millis(4))
                     .unwrap_or_else(|p| p.into_inner())
                     .0;
+            }
+            if state.latest.is_some() && !state.done && vsync && capture_fps != 0 {
+                // Decode may replace the pending frame while the display is busy.
+                drop(state);
+                if !viewer.wait_ready() {
+                    continue;
+                }
+                state = shared.0.lock().unwrap_or_else(|p| p.into_inner());
             }
             let frame = state.latest.take();
             let done = state.done;

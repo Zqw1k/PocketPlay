@@ -34,6 +34,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Launcher archive failed.' }
 & (Join-Path $jdkBin 'java.exe') -cp (Join-Path $sdkPath 'android-15/lib/d8.jar') com.android.tools.r8.D8 --min-api 29 --lib (Join-Path $sdkPath 'android-35/android.jar') --output $dexPath $classJar
 if ($LASTEXITCODE -ne 0) { throw 'Launcher dex compilation failed.' }
 $toolsPath = Join-Path $projectPath 'tools/native'
+New-Item -ItemType Directory -Path $toolsPath -Force | Out-Null
 & (Join-Path $jdkBin 'jar.exe') cf (Join-Path $toolsPath 'pocketplay-launcher.jar') -C $dexPath classes.dex
 if ($LASTEXITCODE -ne 0) { throw 'Dex archive failed.' }
-Copy-Item -LiteralPath (Join-Path $projectPath 'android/native/target/aarch64-linux-android/release/libpocketplay_device.so') -Destination $toolsPath -Force
+$targetPath = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else {
+    Join-Path $projectPath 'android/native/target'
+}
+Copy-Item -LiteralPath (Join-Path $targetPath 'aarch64-linux-android/release/libpocketplay_device.so') -Destination $toolsPath -Force

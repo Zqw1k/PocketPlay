@@ -6,24 +6,25 @@ fn main() {
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     println!("cargo:rerun-if-changed=media/engine.c");
     println!("cargo:rerun-if-changed=media/symbols.h");
+    let headers = PathBuf::from("media/headers.tar.gz");
+    println!("cargo:rerun-if-changed={}", headers.display());
+    let status = Command::new("tar.exe")
+        .arg("-xzf")
+        .arg(&headers)
+        .arg("-C")
+        .arg(&out)
+        .status()
+        .expect("Windows tar.exe is required to extract the media headers");
+    assert!(status.success(), "Could not extract the media headers");
     let media = out.join("media-engine.o");
     let mut compiler = Command::new("clang.exe");
     if env::var_os("CARGO_FEATURE_QA").is_some() {
         compiler.arg("-DPOCKETPLAY_MEDIA_QA");
     }
     let status = compiler
-        .args([
-            "-O3",
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            "-I",
-            "media/include",
-            "-c",
-            "media/engine.c",
-            "-o",
-        ])
+        .args(["-O3", "-std=c11", "-Wall", "-Wextra", "-Werror", "-I"])
+        .arg(out.join("include"))
+        .args(["-c", "media/engine.c", "-o"])
         .arg(&media)
         .status();
     assert!(

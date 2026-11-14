@@ -8,7 +8,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub const VERSION: &str = "1.0.0";
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn id() -> String {
     format!(
         "{:x}",
@@ -398,6 +398,19 @@ mod tests {
         let json = serde_json::to_string(&settings).unwrap();
         let restored: Settings = serde_json::from_str(&json).unwrap();
         assert!(restored.fullscreen);
+    }
+    #[test]
+    fn legacy_refresh_matching_preserves_fullscreen_and_vsync() {
+        let settings: Settings = serde_json::from_str(
+            r#"{"fullscreen":true,"vsync":true,"match_refresh":true,"max_fps":90}"#,
+        )
+        .unwrap();
+        assert!(settings.fullscreen && settings.vsync);
+        assert_eq!(settings.max_fps, 90);
+        assert!(serde_json::to_value(&settings)
+            .unwrap()
+            .get("match_refresh")
+            .is_none());
     }
     #[test]
     fn legacy_settings_keep_immediate_presentation() {

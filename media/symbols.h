@@ -75,6 +75,7 @@ static __typeof__(SDL_GetWindowSize) *p_SDL_GetWindowSize;
 static __typeof__(SDL_GetWindowBordersSize) *p_SDL_GetWindowBordersSize;
 static __typeof__(SDL_SetWindowPosition) *p_SDL_SetWindowPosition;
 static __typeof__(SDL_SetWindowFullscreen) *p_SDL_SetWindowFullscreen;
+static __typeof__(SDL_GetCurrentDisplayMode) *p_SDL_GetCurrentDisplayMode;
 static int load_symbols(HMODULE codec, HMODULE util, HMODULE sdl) {
     p_SDL_GetAudioStreamDevice = (__typeof__(SDL_GetAudioStreamDevice)*) GetProcAddress(sdl, "SDL_GetAudioStreamDevice"); if (!p_SDL_GetAudioStreamDevice) return 0;
     p_SDL_GetAudioDeviceFormat = (__typeof__(SDL_GetAudioDeviceFormat)*) GetProcAddress(sdl, "SDL_GetAudioDeviceFormat"); if (!p_SDL_GetAudioDeviceFormat) return 0;
@@ -152,6 +153,7 @@ static int load_symbols(HMODULE codec, HMODULE util, HMODULE sdl) {
     p_SDL_GetWindowBordersSize = (__typeof__(SDL_GetWindowBordersSize)*) GetProcAddress(sdl, "SDL_GetWindowBordersSize"); if (!p_SDL_GetWindowBordersSize) return 0;
     p_SDL_SetWindowPosition = (__typeof__(SDL_SetWindowPosition)*) GetProcAddress(sdl, "SDL_SetWindowPosition"); if (!p_SDL_SetWindowPosition) return 0;
     p_SDL_SetWindowFullscreen = (__typeof__(SDL_SetWindowFullscreen)*) GetProcAddress(sdl, "SDL_SetWindowFullscreen"); if (!p_SDL_SetWindowFullscreen) return 0;
+    p_SDL_GetCurrentDisplayMode = (__typeof__(SDL_GetCurrentDisplayMode)*) GetProcAddress(sdl, "SDL_GetCurrentDisplayMode"); if (!p_SDL_GetCurrentDisplayMode) return 0;
     return 1;
 }
 #define avcodec_version p_avcodec_version
@@ -230,3 +232,4 @@ static int load_symbols(HMODULE codec, HMODULE util, HMODULE sdl) {
 #define SDL_GetWindowBordersSize p_SDL_GetWindowBordersSize
 #define SDL_SetWindowPosition p_SDL_SetWindowPosition
 #define SDL_SetWindowFullscreen p_SDL_SetWindowFullscreen
+#define SDL_GetCurrentDisplayMode p_SDL_GetCurrentDisplayMode

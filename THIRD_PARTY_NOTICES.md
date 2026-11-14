@@ -4,6 +4,8 @@ PocketPlay's own Rust, Java, and C glue code is MIT licensed; see LICENSE.
 
 ## Headers included in this repository
 
+The upstream SDL3 and FFmpeg headers are bundled in `media/headers.tar.gz`. Their notices and copyrights are retained inside the archive.
+
 - SDL3 public headers: zlib license. See `licenses/SDL-LICENSE.txt` and the notices in the headers. Upstream: https://github.com/libsdl-org/SDL
 - FFmpeg public headers: retain their upstream license notices. License texts are in `licenses/FFmpeg/`. Upstream: https://ffmpeg.org/
 
@@ -19,3 +21,7 @@ Keep the upstream notices when redistributing these headers. Rust dependencies a
 The original development media binaries came from the official scrcpy 5.0 Windows bundle. PocketPlay does not use its client or server. Provenance: https://github.com/Genymobile/scrcpy/releases/tag/v5.0
 
 Binary release maintainers must include the applicable notices and source information for the binaries they actually distribute. This source export does not include third-party DLLs, ADB executables, or a corresponding-source archive for a binary release.
+
+## Updated SDL runtime
+
+The current runtime uses SDL 3.4.18 rebuilt from upstream commit `829a65d769d935c4852f8159e964312c0957260a` with the queue patch and build notes in `third-party/SDL/`. SDL retains its zlib license. The FFmpeg and ADB provenance above remains unchanged.

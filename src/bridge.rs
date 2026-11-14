@@ -259,6 +259,7 @@ impl Session {
             &format!("{}x{}", size.0, size.1),
             if settings.fullscreen { "1" } else { "0" },
             if settings.vsync { "1" } else { "0" },
+            &settings.max_fps.to_string(),
         ]);
         self.mirror = Some(self.tools.log_spawn(viewer, "native-viewer.log")?);
         let geometry = self
@@ -364,6 +365,13 @@ impl Session {
             let _ = touch.stream.shutdown(Shutdown::Both);
         }
         if let Some(mut c) = self.mirror.take() {
+            // Let SDL destroy the window and restore any temporary fullscreen mode.
+            if crate::native::close_mirror(c.id()) {
+                let deadline = Instant::now() + Duration::from_millis(750);
+                while matches!(c.try_wait(), Ok(None)) && Instant::now() < deadline {
+                    thread::sleep(Duration::from_millis(10));
+                }
+            }
             terminate(&mut c);
         }
         if let Some(mut c) = self.server.take() {

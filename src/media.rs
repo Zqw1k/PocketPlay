@@ -28,7 +28,13 @@ unsafe extern "C" {
     fn pp_frame_pts(frame: *mut c_void) -> i64;
     #[cfg(feature = "qa")]
     fn pp_clock_us() -> i64;
-    fn pp_viewer_new(width: c_int, height: c_int, fullscreen: c_int, vsync: c_int) -> *mut c_void;
+    fn pp_viewer_new(
+        width: c_int,
+        height: c_int,
+        fullscreen: c_int,
+        vsync: c_int,
+        capture_fps: c_int,
+    ) -> *mut c_void;
     fn pp_viewer_free(viewer: *mut c_void);
     fn pp_viewer_poll(viewer: *mut c_void) -> c_int;
     #[cfg(feature = "qa")]
@@ -38,6 +44,7 @@ unsafe extern "C" {
     fn pp_viewer_present(viewer: *mut c_void, frame: *mut c_void, rectangles: *const f64) -> c_int;
     fn pp_viewer_renderer(viewer: *mut c_void) -> *const c_char;
     fn pp_viewer_vsync(viewer: *mut c_void) -> c_int;
+    fn pp_viewer_wait_ready(viewer: *mut c_void) -> c_int;
     fn pp_viewer_device(viewer: *mut c_void) -> *mut c_void;
     fn pp_viewer_icon(viewer: *mut c_void, pixels: *const u8, w: c_int, h: c_int);
     fn pp_audio_new(buffer_ms: c_int) -> *mut c_void;
@@ -135,7 +142,7 @@ impl Drop for Frame {
 }
 pub struct Viewer(NonNull<c_void>);
 impl Viewer {
-    pub fn new(size: (u16, u16), fullscreen: bool, vsync: bool) -> Result<Self> {
+    pub fn new(size: (u16, u16), fullscreen: bool, vsync: bool, capture_fps: u16) -> Result<Self> {
         let viewer = Self(
             NonNull::new(unsafe {
                 pp_viewer_new(
@@ -143,6 +150,7 @@ impl Viewer {
                     size.1.into(),
                     fullscreen.into(),
                     vsync.into(),
+                    capture_fps.into(),
                 )
             })
             .ok_or_else(error)?,
@@ -172,6 +180,9 @@ impl Viewer {
     }
     pub fn vsync(&self) -> bool {
         unsafe { pp_viewer_vsync(self.0.as_ptr()) != 0 }
+    }
+    pub fn wait_ready(&self) -> bool {
+        unsafe { pp_viewer_wait_ready(self.0.as_ptr()) != 0 }
     }
     #[cfg(feature = "qa")]
     pub fn presentation_feedback(&self) -> Option<[i64; 6]> {

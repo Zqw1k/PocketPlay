@@ -96,6 +96,7 @@ unsafe extern "system" {
         result: *mut usize,
     ) -> isize;
     fn FindWindowW(class: *const u16, title: *const u16) -> Handle;
+    fn PostMessageW(hwnd: Handle, message: u32, wparam: usize, lparam: isize) -> i32;
     fn GetClientRect(hwnd: Handle, rect: *mut Rect) -> i32;
     fn ClientToScreen(hwnd: Handle, point: *mut Point) -> i32;
     fn GetCursorPos(point: *mut Point) -> i32;
@@ -244,6 +245,19 @@ impl Drop for Instance {
 pub fn mirror() -> isize {
     let title = wide("PocketPlay Android");
     unsafe { FindWindowW(ptr::null(), title.as_ptr()) as isize }
+}
+pub fn close_mirror(process: u32) -> bool {
+    let hwnd = mirror() as Handle;
+    if hwnd.is_null() {
+        return false;
+    }
+    let mut owner = 0;
+    // SAFETY: owner is writable, and only the owned viewer is asked to close.
+    unsafe {
+        GetWindowThreadProcessId(hwnd, &mut owner) != 0
+            && owner == process
+            && PostMessageW(hwnd, 0x0010, 0, 0) != 0 // WM_CLOSE
+    }
 }
 pub fn session_token() -> Result<String> {
     #[link(name = "advapi32")]
@@ -485,7 +499,13 @@ unsafe extern "system" fn mouse_hook(code: i32, w: usize, l: isize) -> isize {
                             s,
                             vk,
                             down,
-                            down && active && client_button_target(hwnd, m.pt),
+                            down && active
+                                && if s.capture.load(Ordering::Relaxed) {
+                                    // Locked look must not depend on a synchronous UI-thread hit test.
+                                    client_under_pointer(hwnd, m.pt)
+                                } else {
+                                    client_button_target(hwnd, m.pt)
+                                },
                         ) {
                             let _ = tx.send(Event::Button {
                                 vk,

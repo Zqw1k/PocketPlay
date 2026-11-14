@@ -4,13 +4,13 @@ This repository contains source code, not a complete binary distribution. Both C
 
 ## Build dependencies
 
-- Windows x64 and PowerShell.
+- Windows x64, PowerShell, and the Windows `tar.exe` command.
 - Rust stable with the `x86_64-pc-windows-gnu` and `aarch64-linux-android` targets.
 - LLVM MinGW with Clang, windres, and the x64 MinGW import libraries.
 - Android NDK r28c (28.2.13676358), SDK Platform 35, and Build Tools 35.0.0.
 - A JDK supporting `javac --release 11`; set `JAVA_HOME` to its installation directory.
 
-Public FFmpeg and SDL3 headers required by `media/engine.c` are retained in `media/include`. Their presence does not provide the runtime libraries.
+`media/headers.tar.gz` contains the pinned FFmpeg and SDL3 public headers. Cargo extracts them into its build directory before compiling the C glue. The headers build without an additional download. The runtime DLLs are staged separately.
 
 ## Current helper-script layout
 
@@ -70,6 +70,8 @@ Obtain ADB from Android SDK Platform Tools and use SDL3/FFmpeg builds matching t
 
 Include the applicable dependency licenses, provenance, and corresponding source information when publishing a binary release. Keep binary packages in GitHub Releases rather than committing them to the source tree.
 
+For v1.1.0, attach `release/PocketPlay-v1.1.0-win64.zip` to the GitHub Release tagged `v1.1.0`. Users can extract the archive and open `PocketPlay.exe`. Git ignores the local release folder.
+
 ## Development commands
 
 ```powershell
@@ -79,3 +81,7 @@ Include the applicable dependency licenses, provenance, and corresponding source
 ```
 
 `-Qa` enables development-only diagnostics. Default builds exclude them; do not publish QA builds as normal releases.
+
+## Patched SDL presentation queue
+
+The packaged runtime now uses SDL 3.4.18 with the opt-in DXGI queue patch. See [SDL build notes](third-party/SDL/README.md) and the included patch. Unmodified SDL remains ABI-compatible and ignores the new hint.

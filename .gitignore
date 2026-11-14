@@ -9,8 +9,8 @@
 /android/launcher.jar
 
 # Staged runtime dependencies and app packages
-/tools/native/*
-!/tools/native/README.md
+/tools/native/
+/release/
 *.exe
 *.dll
 *.so

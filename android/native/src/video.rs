@@ -1,6 +1,6 @@
 use crate::{display_mode::DisplayModeWatch, framework::Framework, Options, MAGIC};
 use anyhow::{bail, Context, Result};
-use jni::objects::{GlobalRef, JObject};
+use jni::objects::{GlobalRef, JObject, JString};
 use ndk_sys::*;
 use std::{
     ffi::CString,
@@ -124,6 +124,21 @@ pub(crate) fn run(
             .split(" | ")
             .next()
             .context("Invalid encoder name")?;
+        let mut keyframe_interval = 1;
+        if options.fps == 60 && name == "c2.qti.avc.encoder" {
+            let is_xiaomi_12s_pro = env.with_local_frame(4, |env| -> Result<bool> {
+                let device = JString::from(
+                    env.get_static_field("android/os/Build", "DEVICE", "Ljava/lang/String;")?
+                        .l()?,
+                );
+                let device: String = env.get_string(&device)?.into();
+                Ok(device == "unicorn")
+            })?;
+            if is_xiaomi_12s_pro {
+                // Frequent keyframes stall this encoder under gameplay load.
+                keyframe_interval = 4;
+            }
+        }
         let name = CString::new(name)?;
         let mime = CString::new(mime(&options.codec))?;
         // SAFETY: NDK handles are checked, released by RAII, and confined to this thread.
@@ -152,7 +167,7 @@ pub(crate) fn run(
                 "frame-rate",
                 if options.fps == 0 { 120 } else { options.fps },
             ),
-            ("i-frame-interval", 1),
+            ("i-frame-interval", keyframe_interval),
             ("max-bframes", 0),
             ("priority", 0),
             ("latency", 0),
@@ -213,7 +228,7 @@ pub(crate) fn run(
         }
         encoder.started = true;
         println!(
-            "Encoder: {} | {w}x{h} | NDK surface",
+            "Encoder: {} | {w}x{h} | NDK surface | keyframe interval: {keyframe_interval}s",
             name.to_string_lossy()
         );
         for value in [MAGIC, dw as u32, dh as u32, w as u32, h as u32] {

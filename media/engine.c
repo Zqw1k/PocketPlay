@@ -11,6 +11,7 @@
 #include <libavutil/hwcontext_d3d11va.h>
 #include <d3d11_4.h>
 #include <dxgi1_2.h>
+#include <dxgi1_3.h>
 #include <libavutil/error.h>
 #include <SDL3/SDL.h>
 #include "symbols.h"
@@ -152,6 +153,10 @@ typedef struct Viewer {
     SDL_Window *window; SDL_Renderer *renderer; SDL_Texture *texture;
     ID3D11Device *device; ID3D11DeviceContext *context; ID3D11Texture2D *gpu_texture;
     int w, h, format, display_w, display_h, placement_pending, vsync; SDL_Colorspace colorspace; int captured;
+    int capture_fps;
+    bool refresh_matched;
+    HANDLE present_ready;
+    IDXGISwapChain1 *present_chain;
 #ifdef POCKETPLAY_MEDIA_QA
     struct { UINT id; int64_t pts, submitted; } presents[256];
     UINT feedback_id;
@@ -178,8 +183,22 @@ int pp_viewer_feedback(void *handle, int64_t *sample) {
     return 1;
 }
 #endif
+static void update_refresh_match(Viewer *v) {
+    const SDL_DisplayMode *mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(v->window));
+    v->refresh_matched = false;
+    if (!mode) return;
+    if (v->capture_fps > 0) {
+        float multiple = roundf(mode->refresh_rate / v->capture_fps);
+        v->refresh_matched = multiple >= 1 && fabsf(mode->refresh_rate - multiple * v->capture_fps) <= 0.2f;
+    }
+    if (SDL_GetWindowFlags(v->window) & SDL_WINDOW_FULLSCREEN) {
+        printf("Fullscreen desktop: %.2f Hz\n", mode->refresh_rate);
+        fflush(stdout);
+    }
+}
 void pp_viewer_free(void *handle) {
     Viewer *v = handle; if (!v) return;
+    if (v->present_ready) CloseHandle(v->present_ready);
     if (v->texture) SDL_DestroyTexture(v->texture);
     if (v->gpu_texture) ID3D11Texture2D_Release(v->gpu_texture);
     if (v->context) ID3D11DeviceContext_Release(v->context);
@@ -187,7 +206,7 @@ void pp_viewer_free(void *handle) {
     if (v->window) SDL_DestroyWindow(v->window);
     free(v); SDL_Quit();
 }
-void *pp_viewer_new(int w, int h, int fullscreen, int smooth) {
+void *pp_viewer_new(int w, int h, int fullscreen, int smooth, int capture_fps) {
     SDL_SetHint("SDL_WINDOWS_DPI_AWARENESS", "permonitorv2");
     SDL_SetHint(SDL_HINT_RENDER_DIRECT3D_THREADSAFE, "1");
     if (!SDL_Init(SDL_INIT_VIDEO)) { fail(SDL_GetError()); return NULL; }
@@ -202,21 +221,28 @@ void *pp_viewer_new(int w, int h, int fullscreen, int smooth) {
     const char *qa_fullscreen=getenv("POCKETPLAY_QA_FULLSCREEN");
     if (qa_fullscreen) fullscreen=strcmp(qa_fullscreen,"1")==0;
 #endif
-    if (fullscreen) flags|=SDL_WINDOW_FULLSCREEN;
-    v->window = SDL_CreateWindow("PocketPlay Android", ww, wh, flags);
-    if (!v->window) { fail(SDL_GetError()); pp_viewer_free(v); return NULL; }
-    v->display_w=w;v->display_h=h;
-    float aspect=(float)w/h;
-    if (!SDL_SetWindowAspectRatio(v->window,aspect,aspect)) { fail(SDL_GetError());pp_viewer_free(v);return NULL; }
-    v->renderer = SDL_CreateRenderer(v->window, "direct3d11");
-    if (!v->renderer) v->renderer = SDL_CreateRenderer(v->window, NULL);
-    if (!v->renderer) { fail(SDL_GetError()); pp_viewer_free(v); return NULL; }
-    int vsync=-1;
     int wanted_vsync=smooth ? 1 : 0;
 #ifdef POCKETPLAY_MEDIA_QA
     const char *qa_vsync=getenv("POCKETPLAY_QA_VSYNC");
     if (qa_vsync) wanted_vsync=atoi(qa_vsync);
 #endif
+    v->capture_fps=capture_fps;
+    if (fullscreen) flags|=SDL_WINDOW_FULLSCREEN;
+    v->window = SDL_CreateWindow("PocketPlay Android", ww, wh, flags);
+    if (!v->window) { fail(SDL_GetError()); pp_viewer_free(v); return NULL; }
+    v->display_w=w;v->display_h=h;
+    float aspect=(float)w/h;
+    if (!SDL_SetWindowAspectRatio(v->window,aspect,aspect)) {
+        fail(SDL_GetError()); pp_viewer_free(v); return NULL;
+    }
+    update_refresh_match(v);
+    // Defer frame selection when the existing monitor rate fits the capture rate.
+    // Older unmodified SDL builds safely ignore this hint.
+    SDL_SetHint("SDL_RENDER_DIRECT3D11_LOW_LATENCY", (!wanted_vsync || v->refresh_matched) ? "1" : "0");
+    v->renderer = SDL_CreateRenderer(v->window, "direct3d11");
+    if (!v->renderer) v->renderer = SDL_CreateRenderer(v->window, NULL);
+    if (!v->renderer) { fail(SDL_GetError()); pp_viewer_free(v); return NULL; }
+    int vsync=-1;
     if (!SDL_SetRenderVSync(v->renderer, wanted_vsync) || !SDL_GetRenderVSync(v->renderer,&vsync) || vsync != wanted_vsync) {
         fail("The renderer could not apply the selected VSync mode");pp_viewer_free(v);return NULL;
     }
@@ -240,6 +266,23 @@ void pp_viewer_icon(void *handle, const uint8_t *pixels, int w, int h) {
 }
 const char *pp_viewer_renderer(void *handle) { return SDL_GetRendererName(((Viewer*)handle)->renderer); }
 int pp_viewer_vsync(void *handle) { return ((Viewer*)handle)->vsync; }
+int pp_viewer_wait_ready(void *handle) {
+    Viewer *v=handle;
+    if (!v->vsync || !v->refresh_matched || !(SDL_GetWindowFlags(v->window)&SDL_WINDOW_FULLSCREEN)) return 1;
+    IDXGISwapChain1 *chain=SDL_GetPointerProperty(SDL_GetRendererProperties(v->renderer),SDL_PROP_RENDERER_D3D11_SWAPCHAIN_POINTER,NULL);
+    if (chain != v->present_chain) {
+        if (v->present_ready) CloseHandle(v->present_ready);
+        v->present_ready=NULL;
+        v->present_chain=chain;
+        static const GUID iid={0x94d99bdb,0xf1f8,0x4ab0,{0xb2,0x36,0x7d,0xa0,0x17,0x0e,0xda,0xb1}};
+        IDXGISwapChain2 *latency=NULL;
+        if (chain && SUCCEEDED(IDXGISwapChain1_QueryInterface(chain,&iid,(void**)&latency))) {
+            v->present_ready=IDXGISwapChain2_GetFrameLatencyWaitableObject(latency);
+            IDXGISwapChain2_Release(latency);
+        }
+    }
+    return !v->present_ready || WaitForSingleObject(v->present_ready, 4) != WAIT_TIMEOUT;
+}
 int pp_viewer_geometry(void *handle, int w, int h) {
     Viewer *v=handle;
     if (w<=0 || h<=0 || w>8192 || h>8192) return fail("Invalid content aspect ratio");
@@ -290,6 +333,8 @@ int pp_viewer_poll(void *handle) {
             if (!SDL_SetWindowFullscreen(v->window,!fullscreen)) return fail(SDL_GetError());
             v->placement_pending=1;
         }
+        if (e.type==SDL_EVENT_WINDOW_ENTER_FULLSCREEN || e.type==SDL_EVENT_WINDOW_DISPLAY_CHANGED ||
+            e.type==SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED) update_refresh_match(v);
         if (e.type==SDL_EVENT_WINDOW_RESIZED &&
             !(SDL_GetWindowFlags(v->window)&(SDL_WINDOW_MAXIMIZED|SDL_WINDOW_MINIMIZED|SDL_WINDOW_FULLSCREEN))) {
             int w,h;
